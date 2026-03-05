@@ -20,7 +20,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             hotkey: Hotkey {
-                key: 32,
+                key: 65,
                 modifier: "ctrl".to_string(),
             },
         }
