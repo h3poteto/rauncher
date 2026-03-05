@@ -13,6 +13,8 @@ use nucleo_matcher::{
     Matcher, Utf32Str,
     pattern::{CaseMatching, Normalization, Pattern},
 };
+use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -21,12 +23,38 @@ use x11rb::{
     },
 };
 
+mod config;
+mod error;
+
 struct Desktop {
     name: String,
     entry: DesktopEntry,
 }
 
 fn main() {
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    let config_dir = dirs::config_dir()
+        .expect("config directory not found")
+        .join("rauncher");
+    let config_file = "config.toml";
+    let config_path = config_dir.join(config_file);
+
+    let Some(c) = config::parse_config(&config_path).ok().or_else(|| {
+        config::write_default_config(&config_dir, &config_path)
+            .map_err(|e| tracing::error!("{}", e))
+            .ok()
+    }) else {
+        tracing::error!("Config file not found");
+        return;
+    };
+
     let app = Application::builder()
         .application_id("dev.h3poteto.rauncher")
         .build();
@@ -53,9 +81,10 @@ fn main() {
         });
 
         let key_sender = key_sender.clone();
+        let c = c.clone();
         std::thread::spawn(move || {
-            if let Err(err) = bind_shortcut_key(key_sender) {
-                println!("{}", err);
+            if let Err(err) = bind_shortcut_key(key_sender, &c) {
+                tracing::error!("{}", err);
                 std::process::exit(1);
             }
         });
@@ -72,7 +101,7 @@ fn main() {
             }
         }
 
-        println!("entries: {}", desktop_entries.len());
+        tracing::debug!("entries: {}", desktop_entries.len());
 
         build_ui(app, desktop_entries);
     });
@@ -239,18 +268,26 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
     window.hide();
 }
 
-fn bind_shortcut_key(sender: mpsc::Sender<KeyEvent>) -> Result<(), Box<dyn std::error::Error>> {
+fn bind_shortcut_key(
+    sender: mpsc::Sender<KeyEvent>,
+    c: &config::Config,
+) -> Result<(), Box<dyn std::error::Error>> {
     let (conn, screen_num) = x11rb::connect(None)?;
     let screen = &conn.setup().roots[screen_num];
     let root = screen.root;
 
-    let keycode = 102;
+    let mut modifier = ModMask::CONTROL;
+    match c.hotkey.modifier.as_str() {
+        "shift" => modifier = ModMask::SHIFT,
+        "alt" => modifier = ModMask::M1,
+        _ => {}
+    }
 
     conn.grab_key(
         false,
         root,
-        ModMask::CONTROL,
-        keycode,
+        modifier,
+        c.hotkey.key,
         GrabMode::ASYNC,
         GrabMode::ASYNC,
     )?;
@@ -260,16 +297,16 @@ fn bind_shortcut_key(sender: mpsc::Sender<KeyEvent>) -> Result<(), Box<dyn std::
         let event = conn.wait_for_event().expect("Failed to get event");
         match event {
             Event::KeyPress(key) => {
-                if key.detail == keycode {
-                    println!("{:#?}", key.detail);
-                    println!("hotkey pressed");
+                if key.detail == c.hotkey.key {
+                    tracing::debug!("{:#?}", key.detail);
+                    tracing::debug!("hotkey pressed");
                     let _ = sender.send(KeyEvent::WindowToggle);
                 } else {
-                    println!("other key events");
+                    tracing::debug!("other key events");
                 }
             }
             _ => {
-                println!("other events");
+                tracing::debug!("other events");
             }
         }
     }
