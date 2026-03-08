@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Rauncher
+Comment=Application launcher for Linux, supporting X11 and Wayland
+Exec=rauncher
+Icon=rauncher
+Categories=Utility;
+Terminal=false
