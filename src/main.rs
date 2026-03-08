@@ -1,5 +1,6 @@
 use std::sync::mpsc;
 
+use events::KeyEvent;
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use gtk4::{
     Align, Application, ApplicationWindow, Entry, EventControllerKey, IconTheme, Orientation,
@@ -17,17 +18,16 @@ use nucleo_matcher::{
 };
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use x11rb::{
-    connection::Connection,
-    protocol::{
-        Event,
-        xproto::{ConnectionExt, GrabMode, ModMask},
-    },
+use zbus::{
+    blocking::{Connection, connection},
+    interface,
 };
 
 mod config;
 mod error;
+mod events;
 mod tray;
+mod x11;
 
 struct Desktop {
     name: String,
@@ -42,6 +42,23 @@ fn main() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(|s| s.as_str()) == Some("toggle") {
+        tracing::debug!("toggle");
+        let conn = Connection::session().expect("failed to get connection");
+        let reply = conn.call_method(
+            Some("com.github.h3poteto.rauncher"),
+            "/com/github/h3poteto/rauncher",
+            Some("com.github.h3poteto.rauncher"),
+            "Toggle",
+            &(),
+        );
+        if let Err(err) = reply {
+            tracing::error!("{}", err);
+        }
+        return;
+    }
 
     let config_dir = dirs::config_dir()
         .expect("config directory not found")
@@ -89,12 +106,28 @@ fn main() {
             glib::ControlFlow::Continue
         });
 
-        let key_sender = key_sender.clone();
+        let key_sender_clone = key_sender.clone();
         let c = c.clone();
         std::thread::spawn(move || {
-            if let Err(err) = bind_shortcut_key(key_sender, &c) {
+            if let Err(err) = bind_shortcut_key(key_sender_clone, &c) {
                 tracing::error!("{}", err);
                 std::process::exit(1);
+            }
+        });
+
+        let key_sender = key_sender.clone();
+        std::thread::spawn(move || {
+            let service = RauncherService { sender: key_sender };
+            let _conn = connection::Builder::session()
+                .expect("Failed to get session")
+                .name("com.github.h3poteto.rauncher")
+                .expect("Failed to set name")
+                .serve_at("/com/github/h3poteto/rauncher", service)
+                .expect("Failed to set dbus server")
+                .build()
+                .expect("Failed to build connection");
+            loop {
+                std::thread::park();
             }
         });
 
@@ -284,46 +317,20 @@ fn bind_shortcut_key(
     sender: mpsc::Sender<KeyEvent>,
     c: &config::Config,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let (conn, screen_num) = x11rb::connect(None)?;
-    let screen = &conn.setup().roots[screen_num];
-    let root = screen.root;
-
-    let mut modifier = ModMask::CONTROL;
-    match c.hotkey.modifier.as_str() {
-        "shift" => modifier = ModMask::SHIFT,
-        "alt" => modifier = ModMask::M1,
-        _ => {}
+    #[cfg(feature = "x11")]
+    {
+        return x11::bind_shortcut_key(sender, c);
     }
-
-    conn.grab_key(
-        false,
-        root,
-        modifier,
-        c.hotkey.key,
-        GrabMode::ASYNC,
-        GrabMode::ASYNC,
-    )?;
-    conn.flush()?;
-
-    loop {
-        let event = conn.wait_for_event().expect("Failed to get event");
-        match event {
-            Event::KeyPress(key) => {
-                if key.detail == c.hotkey.key {
-                    tracing::debug!("{:#?}", key.detail);
-                    tracing::debug!("hotkey pressed");
-                    let _ = sender.send(KeyEvent::WindowToggle);
-                } else {
-                    tracing::debug!("other key events");
-                }
-            }
-            _ => {
-                tracing::debug!("other events");
-            }
-        }
-    }
+    Ok(())
 }
 
-enum KeyEvent {
-    WindowToggle,
+struct RauncherService {
+    sender: mpsc::Sender<KeyEvent>,
+}
+
+#[interface(name = "com.github.h3poteto.rauncher")]
+impl RauncherService {
+    async fn toggle(&self) {
+        let _ = self.sender.send(KeyEvent::WindowToggle);
+    }
 }
