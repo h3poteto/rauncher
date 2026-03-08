@@ -1,4 +1,4 @@
-use std::{os::unix::process::CommandExt, sync::mpsc};
+use std::sync::mpsc;
 
 use events::KeyEvent;
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
@@ -87,24 +87,6 @@ fn main() {
         Window::set_default_icon_name("rauncher");
 
         let (key_sender, key_receiver) = mpsc::channel::<KeyEvent>();
-        let app_clone = app.clone();
-        glib::idle_add_local(move || {
-            let windows = app_clone.windows();
-            if let Ok(msg) = key_receiver.try_recv() {
-                match msg {
-                    KeyEvent::WindowToggle => {
-                        windows.iter().for_each(|w| {
-                            if w.is_visible() {
-                                w.hide();
-                            } else {
-                                w.present();
-                            }
-                        });
-                    }
-                }
-            }
-            glib::ControlFlow::Continue
-        });
 
         let key_sender_clone = key_sender.clone();
         let c = c.clone();
@@ -145,7 +127,27 @@ fn main() {
 
         tracing::debug!("entries: {}", desktop_entries.len());
 
-        build_ui(app, desktop_entries);
+        let search_entry = build_ui(app, desktop_entries);
+
+        let app_clone = app.clone();
+        glib::idle_add_local(move || {
+            let windows = app_clone.windows();
+            if let Ok(msg) = key_receiver.try_recv() {
+                match msg {
+                    KeyEvent::WindowToggle => {
+                        windows.iter().for_each(|w| {
+                            if w.is_visible() {
+                                search_entry.set_text("");
+                                w.hide();
+                            } else {
+                                w.present();
+                            }
+                        });
+                    }
+                }
+            }
+            glib::ControlFlow::Continue
+        });
     });
 
     app.connect_activate(|_app| {});
@@ -156,7 +158,7 @@ fn main() {
     app.run();
 }
 
-fn build_ui(app: &Application, desktop_entries: Vec<Desktop>) {
+fn build_ui(app: &Application, desktop_entries: Vec<Desktop>) -> Entry {
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Rauncher")
@@ -168,11 +170,16 @@ fn build_ui(app: &Application, desktop_entries: Vec<Desktop>) {
 
     let window_clone = window.clone();
     let controller = EventControllerKey::new();
+
+    let search_entry = Entry::builder().placeholder_text("Search...").build();
     let list_box = gtk4::ListBox::new();
 
     let list_box_copy = list_box.clone();
+
+    let search_entry_clone = search_entry.clone();
     controller.connect_key_pressed(move |_controller, key, _keycode, _modifier| match key {
         gdk::Key::Escape => {
+            search_entry_clone.set_text("");
             window_clone.hide();
             glib::Propagation::Stop
         }
@@ -217,8 +224,6 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
         &css_provider,
         gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
-
-    let search_entry = Entry::builder().placeholder_text("Search...").build();
 
     let list_box_clone = list_box.clone();
     let window_clone = window.clone();
@@ -295,6 +300,7 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
     });
 
     let window_copy = window.clone();
+    let search_entry_copy = search_entry.clone();
     list_box.connect_row_activated(move |_list_box, row| {
         let binding = row.widget_name().to_string();
         let exec = binding
@@ -308,6 +314,7 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
             .spawn()
             .expect("Failed to execute");
         window_copy.hide();
+        search_entry_copy.set_text("");
     });
 
     let vbox = gtk4::Box::new(Orientation::Vertical, 0);
@@ -316,6 +323,8 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
 
     window.set_child(Some(&vbox));
     window.hide();
+
+    search_entry
 }
 
 fn bind_shortcut_key(
