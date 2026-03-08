@@ -27,6 +27,7 @@ mod config;
 mod error;
 mod events;
 mod tray;
+#[cfg(feature = "x11")]
 mod x11;
 
 struct Desktop {
@@ -168,6 +169,18 @@ fn build_ui(app: &Application, desktop_entries: Vec<Desktop>, c: &config::Config
         .decorated(false)
         .modal(true)
         .build();
+
+    #[cfg(feature = "wayland")]
+    {
+        use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
+
+        window.init_layer_shell();
+        window.set_layer(Layer::Overlay);
+        window.set_keyboard_mode(KeyboardMode::Exclusive);
+
+        window.set_anchor(Edge::Top, true);
+        window.set_margin(Edge::Top, 420);
+    }
 
     let window_clone = window.clone();
     let controller = EventControllerKey::new();
@@ -400,7 +413,11 @@ fn bind_shortcut_key(
     {
         return x11::bind_shortcut_key(sender, c);
     }
-    Ok(())
+    #[cfg(not(feature = "x11"))]
+    {
+        let _ = (sender, c);
+        Ok(())
+    }
 }
 
 struct RauncherService {
