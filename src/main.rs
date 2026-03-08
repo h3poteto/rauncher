@@ -89,9 +89,9 @@ fn main() {
         let (key_sender, key_receiver) = mpsc::channel::<KeyEvent>();
 
         let key_sender_clone = key_sender.clone();
-        let c = c.clone();
+        let config_clone = c.clone();
         std::thread::spawn(move || {
-            if let Err(err) = bind_shortcut_key(key_sender_clone, &c) {
+            if let Err(err) = bind_shortcut_key(key_sender_clone, &config_clone) {
                 tracing::error!("{}", err);
                 std::process::exit(1);
             }
@@ -127,7 +127,8 @@ fn main() {
 
         tracing::debug!("entries: {}", desktop_entries.len());
 
-        let search_entry = build_ui(app, desktop_entries);
+        let c = c.clone();
+        let search_entry = build_ui(app, desktop_entries, &c);
 
         let app_clone = app.clone();
         glib::idle_add_local(move || {
@@ -158,7 +159,7 @@ fn main() {
     app.run();
 }
 
-fn build_ui(app: &Application, desktop_entries: Vec<Desktop>) -> Entry {
+fn build_ui(app: &Application, desktop_entries: Vec<Desktop>, c: &config::Config) -> Entry {
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Rauncher")
@@ -227,6 +228,7 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
 
     let list_box_clone = list_box.clone();
     let window_clone = window.clone();
+    let c = c.clone();
     search_entry.connect_changed(move |entry| {
         let text = entry.text().to_string();
 
@@ -289,6 +291,49 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
             row.set_widget_name(&desktop.entry.exec().unwrap());
             list_box_clone.append(&row);
         }
+
+        if text.len() > 0 && result.len() < 10 && c.custom_search.len() > 0 {
+            let default_search = c.custom_search.iter().find(|s| s.default_search);
+            if let Some(ds) = default_search {
+                let row = gtk4::ListBoxRow::new();
+                let hbox = gtk4::Box::new(Orientation::Horizontal, 0);
+                hbox.set_margin_start(16);
+                hbox.set_margin_end(16);
+                hbox.set_margin_top(4);
+                hbox.set_margin_bottom(4);
+
+                if let Some(icon_name) = &ds.icon_name {
+                    let image = gtk4::Image::from_icon_name(icon_name.as_str());
+                    image.set_pixel_size(32);
+                    hbox.append(&image);
+                }
+                if let Some(icon_path) = &ds.icon_path {
+                    let image = gtk4::Image::from_file(icon_path);
+                    image.set_pixel_size(32);
+                    hbox.append(&image);
+                }
+
+                let vbox = gtk4::Box::new(Orientation::Vertical, 2);
+                vbox.set_halign(Align::Start);
+                vbox.set_margin_start(8);
+
+                let name_label = gtk4::Label::new(Some("Web search"));
+                name_label.set_halign(Align::Start);
+                vbox.append(&name_label);
+
+                let comment_label = gtk4::Label::new(Some("Type in your query"));
+                comment_label.set_halign(Align::Start);
+                comment_label.add_css_class("dim-label");
+                vbox.append(&comment_label);
+
+                hbox.append(&vbox);
+                row.set_child(Some(&hbox));
+
+                row.set_widget_name(&format!("__web_search__{}__{}", &ds.exec, &text));
+                list_box_clone.append(&row);
+            }
+        }
+
         window_clone.set_default_height(-1);
     });
 
@@ -303,16 +348,36 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
     let search_entry_copy = search_entry.clone();
     list_box.connect_row_activated(move |_list_box, row| {
         let binding = row.widget_name().to_string();
-        let exec = binding
-            .split_whitespace()
-            .filter(|s| !s.starts_with("%"))
-            .collect::<Vec<_>>()
-            .join(" ");
-        std::process::Command::new("sh")
-            .arg("-c")
-            .arg(format!("nohup {} >/dev/null 2>&1 &", exec.trim()))
-            .spawn()
-            .expect("Failed to execute");
+        if binding.starts_with("__web_search__") {
+            let exec = binding.replace("__web_search__", "");
+            let v: Vec<&str> = exec.split("__").collect();
+            if v.len() < 2 {
+                tracing::error!("failed to parse custom search");
+                return;
+            }
+            let url = v[0];
+            let argument = v[1];
+            let command = url.replace("%q", argument);
+            std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!(
+                    "nohup xdg-open {} >/dev/null 2>&1 &",
+                    command.trim()
+                ))
+                .spawn()
+                .expect("Failed to execute");
+        } else {
+            let exec = binding
+                .split_whitespace()
+                .filter(|s| !s.starts_with("%"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("nohup {} >/dev/null 2>&1 &", exec.trim()))
+                .spawn()
+                .expect("Failed to execute");
+        }
         window_copy.hide();
         search_entry_copy.set_text("");
     });
