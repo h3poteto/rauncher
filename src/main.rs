@@ -1,4 +1,4 @@
-use std::sync::mpsc;
+use std::{os::unix::process::CommandExt, sync::mpsc};
 
 use events::KeyEvent;
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
@@ -296,10 +296,15 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
 
     let window_copy = window.clone();
     list_box.connect_row_activated(move |_list_box, row| {
-        let exec = row.widget_name().to_string();
+        let binding = row.widget_name().to_string();
+        let exec = binding
+            .split_whitespace()
+            .filter(|s| !s.starts_with("%"))
+            .collect::<Vec<_>>()
+            .join(" ");
         std::process::Command::new("sh")
             .arg("-c")
-            .arg(&exec)
+            .arg(format!("nohup {} >/dev/null 2>&1 &", exec.trim()))
             .spawn()
             .expect("Failed to execute");
         window_copy.hide();
