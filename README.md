@@ -1,0 +1,2 @@
+# Require
+- snixembed (X11)

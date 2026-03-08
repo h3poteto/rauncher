@@ -2,13 +2,15 @@ use std::sync::mpsc;
 
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use gtk4::{
-    Align, Application, ApplicationWindow, Entry, EventControllerKey, Orientation, gdk,
+    Align, Application, ApplicationWindow, Entry, EventControllerKey, IconTheme, Orientation,
+    Window, gdk,
     gio::prelude::{ApplicationExt, ApplicationExtManual},
-    glib,
+    glib::{self},
     prelude::{
         BoxExt, EditableExt, EntryExt, GtkApplicationExt, GtkWindowExt, ListBoxRowExt, WidgetExt,
     },
 };
+use ksni::blocking::TrayMethods;
 use nucleo_matcher::{
     Matcher, Utf32Str,
     pattern::{CaseMatching, Normalization, Pattern},
@@ -25,6 +27,7 @@ use x11rb::{
 
 mod config;
 mod error;
+mod tray;
 
 struct Desktop {
     name: String,
@@ -60,6 +63,12 @@ fn main() {
         .build();
 
     app.connect_startup(move |app| {
+        let exec_path = std::env::current_dir().unwrap();
+        let icon_path = exec_path.join("data/icons");
+        let icon_theme = IconTheme::for_display(&gdk::Display::default().unwrap());
+        icon_theme.add_search_path(icon_path);
+        Window::set_default_icon_name("rauncher");
+
         let (key_sender, key_receiver) = mpsc::channel::<KeyEvent>();
         let app_clone = app.clone();
         glib::idle_add_local(move || {
@@ -107,6 +116,9 @@ fn main() {
     });
 
     app.connect_activate(|_app| {});
+
+    let tray_icon = tray::RauncherTray {};
+    let _handle = tray_icon.spawn().unwrap();
 
     app.run();
 }
