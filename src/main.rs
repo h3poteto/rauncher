@@ -132,7 +132,7 @@ fn main() {
         let search_entry = build_ui(app, desktop_entries, &c);
 
         let app_clone = app.clone();
-        glib::idle_add_local(move || {
+        glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
             let windows = app_clone.windows();
             if let Ok(msg) = key_receiver.try_recv() {
                 match msg {
@@ -253,7 +253,9 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
 
             result = desktop_entries
                 .iter()
-                .filter(|d| d.entry.icon().is_some() && d.entry.exec().is_some())
+                .filter(|d| {
+                    d.entry.icon().is_some() && d.entry.exec().is_some() && !d.entry.no_display()
+                })
                 .filter_map(|d| {
                     let mut buf = Vec::new();
                     let haystack = Utf32Str::new(&d.name, &mut buf);
