@@ -143,6 +143,7 @@ fn main() {
                                 w.hide();
                             } else {
                                 w.present();
+                                search_entry.grab_focus();
                             }
                         });
                     }
@@ -345,6 +346,10 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
                 row.set_widget_name(&format!("__web_search__{}__{}", &ds.exec, &text));
                 list_box_clone.append(&row);
             }
+        }
+
+        if let Some(first_row) = list_box_clone.row_at_index(0) {
+            list_box_clone.select_row(Some(&first_row));
         }
 
         window_clone.set_default_height(-1);
