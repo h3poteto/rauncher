@@ -318,7 +318,7 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
             list_box_clone.append(&row);
         }
 
-        if text.len() > 0 && result.len() < 10 && c.custom_search.len() > 0 {
+        if text.len() > 0 && result.len() == 0 && c.custom_search.len() > 0 {
             let default_search = c.custom_search.iter().find(|s| s.default_search);
             if let Some(ds) = default_search {
                 let row = gtk4::ListBoxRow::new();
