@@ -258,7 +258,11 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
                 })
                 .filter_map(|d| {
                     let mut buf = Vec::new();
-                    let haystack = Utf32Str::new(&d.name, &mut buf);
+                    let mut desc = format!("{}", &d.name);
+                    if let Some(exec) = d.entry.exec() {
+                        desc = format!("{} {}", desc, exec);
+                    }
+                    let haystack = Utf32Str::new(&desc, &mut buf);
                     pattern
                         .score(haystack, &mut matcher)
                         .map(|score| (d, score))
