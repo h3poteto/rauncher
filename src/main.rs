@@ -7,6 +7,7 @@ use gtk4::{
     Window, gdk,
     gio::prelude::{ApplicationExt, ApplicationExtManual},
     glib::{self},
+    pango,
     prelude::{
         BoxExt, EditableExt, EntryExt, GtkApplicationExt, GtkWindowExt, ListBoxRowExt, WidgetExt,
     },
@@ -143,6 +144,7 @@ fn main() {
                                 w.hide();
                             } else {
                                 w.present();
+                                w.set_default_width(480);
                                 search_entry.grab_focus();
                             }
                         });
@@ -228,9 +230,11 @@ fn build_ui(app: &Application, desktop_entries: Vec<Desktop>, c: &config::Config
     let css_provider = gtk4::CssProvider::new();
     css_provider.load_from_data(
         "
-window { border-radius: 4px; }
+window { border-radius: 4px; background-color: #484848; outline: none; border-color: #080808; }
 entry:focus-within { outline: none; box-shadow: none; border-color: transparent; }
-entry { font-size: 24px; padding: 12px; min-height: 48px; }
+entry { font-size: 24px; padding: 12px; min-height: 48px; background-color: #484848; color: #ededed; outline: none; box-shadow: none; border-color: transparent; }
+listbox, row, label, box { background-color: #484848; color: #ededed; }
+row:selected, row:selected label, row:selected box, row:selected image, row:focus, row:focus label, row:focus box, row:focus image { background-color: #626262; }
 ",
     );
 
@@ -296,12 +300,14 @@ entry { font-size: 24px; padding: 12px; min-height: 48px; }
 
             let name_label = gtk4::Label::new(Some(&desktop.name));
             name_label.set_halign(Align::Start);
+            name_label.set_ellipsize(pango::EllipsizeMode::End);
             vbox.append(&name_label);
 
             if let Some(comment) = &desktop.entry.comment(&["en"]) {
                 let comment_label = gtk4::Label::new(Some(comment));
                 comment_label.set_halign(Align::Start);
                 comment_label.add_css_class("dim-label");
+                comment_label.set_ellipsize(pango::EllipsizeMode::End);
                 vbox.append(&comment_label);
             }
 
