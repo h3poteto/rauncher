@@ -8,6 +8,9 @@ Rauncher is an application launcher for Linux desktop. It supports both X11 and 
 $ yay -S rauncher-wayland # or rauncher-x11
 ```
 
+### Pre-built packages
+`deb` packages are included with each release, please refer [release page](https://github.com/h3poteto/rauncher/releases).
+
 ### Manual
 Please install required packages:
 
