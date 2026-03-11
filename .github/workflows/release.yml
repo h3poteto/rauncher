@@ -1,0 +1,57 @@
+name: Release
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.2
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential\
+            libglib2.0-dev\
+            libcairo2-dev\
+            libpango1.0-dev\
+            libgdk-pixbuf-2.0-dev\
+            libgtk-4-dev\
+            meson\
+            libwayland-dev\
+            libgirepository1.0-dev\
+            gobject-introspection\
+            valac
+
+      - name: Build gtk4-layer-shell from source
+        run: |
+          git clone https://github.com/wmww/gtk4-layer-shell.git
+          cd gtk4-layer-shell
+          meson setup build
+          ninja -C build
+          sudo ninja -C build install
+          sudo ldconfig
+
+      - name: Install cargo-deb
+        run: |
+          cargo install cargo-deb
+      - name: Build
+        run: |
+          cargo deb --variant=x11
+          cargo deb --variant=wayland
+      - name: Upload release packages
+        uses: alexellis/upload-assets@0.4.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_paths: '["./target/debian/*"]'
