@@ -50,3 +50,4 @@ default-features = false
 name = "rauncher-wayland"
 features = ["wayland"]
 default-features = false
+depends = "$auto, libgtk4-layer-shell0"
