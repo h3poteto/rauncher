@@ -22,6 +22,38 @@ $ make build-wayland # or build-x11
 $ sudo make install
 ```
 
+## Usage
+### X11
+The configuration file will be created after you launch `rauncher`. So, please update the file.
+
+```toml
+[hotkey]
+key = 102         # You can check the keycode with xev.
+modifier = "ctrl" # "ctrl", "shift", or "alt"
+
+[[custom_search]]
+name = "Google"
+exec = "https://www.google.com/search?q=%q"
+icon_name = "web-browser"
+default_search = true
+```
+
+The default hotkey is <kbd>Ctrk</kbd>+<kbd>Space</kbd>. You can check the keycode using `xev`.
+
+### Wayland
+In wayland, `rauncher` can't catch global shortcut keys, so `hotkey` section in the configuration file is ignored. Instead, `rauncher` provides subcommand.
+```
+$ rauncher toggle
+```
+
+So, plsase set a shortcut key in your compositor settings, e.g. sway
+
+```
+exec sleep 2 && rauncher
+
+bindsym Control+space exec rauncher toggle
+```
+
 ## License
 Rauncher is licensed under [GPL-3.0](LICENSE).
 
