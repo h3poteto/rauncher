@@ -2,6 +2,10 @@
 name = "rauncher"
 version = "0.1.0"
 edition = "2024"
+description = "Application launcher for Linux, supporting X11 and Wayland"
+license = "GPL-3.0"
+repository = "https://github.com/h3poteto/rauncher"
+homepage = "https://github.com/h3poteto/rauncher"
 
 [features]
 default = ["x11"]
@@ -24,5 +28,25 @@ image = "0.25.9"
 zbus = { version = "5" , features = ["blocking-api"]}
 gtk4-layer-shell = { version = "0.7.1", optional = true}
 
-[dev-dependencies]
+[package.metadata.deb]
+name = "rauncher"
+maintainer = "h3poteto"
+copyright = "2026, h3poteto"
+license-file = ["LICENSE", "0"]
+section = "utility"
+depends = "$auto"
+assets = [
+  ["target/release/rauncher", "usr/bin/", "755"],
+  ["data/rauncher.desktop", "usr/share/applications/", "644"],
+  ["data/icons/hicolor/128x128/apps/rauncher.png", "usr/share/icons/hicolor/128x128/apps/", "644"],
+]
 
+[package.metadata.deb.variants.x11]
+name = "rauncher-x11"
+features = ["x11"]
+default-features = false
+
+[package.metadata.deb.variants.wayland]
+name = "rauncher-wayland"
+features = ["wayland"]
+default-features = false
