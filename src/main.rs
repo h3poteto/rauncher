@@ -1,4 +1,4 @@
-use std::sync::mpsc;
+use std::{cell::RefCell, rc::Rc, sync::mpsc, time::Duration};
 
 use events::KeyEvent;
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
@@ -115,25 +115,23 @@ fn main() {
             }
         });
 
-        let mut desktop_entries = Vec::<Desktop>::new();
+        let desktop_entries = Rc::new(RefCell::new(load_desktop_entries()));
 
-        for path in Iter::new(default_paths()) {
-            if let Ok(entry) = DesktopEntry::from_path(path, Some(&["en"])) {
-                let d = Desktop {
-                    name: entry.name(&["en"]).unwrap().to_string(),
-                    entry,
-                };
-                desktop_entries.push(d);
-            }
-        }
+        tracing::debug!("entries: {}", desktop_entries.borrow().len());
 
-        tracing::debug!("entries: {}", desktop_entries.len());
+        let desktop_entries_clone = desktop_entries.clone();
+        glib::timeout_add_local(Duration::from_secs(10), move || {
+            let new_entries = load_desktop_entries();
+            *desktop_entries_clone.borrow_mut() = new_entries;
+            tracing::debug!("update entries: {}", desktop_entries_clone.borrow().len());
+            glib::ControlFlow::Continue
+        });
 
         let c = c.clone();
         let search_entry = build_ui(app, desktop_entries, &c);
 
         let app_clone = app.clone();
-        glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+        glib::timeout_add_local(Duration::from_millis(50), move || {
             let windows = app_clone.windows();
             if let Ok(msg) = key_receiver.try_recv() {
                 match msg {
@@ -163,7 +161,11 @@ fn main() {
     app.run();
 }
 
-fn build_ui(app: &Application, desktop_entries: Vec<Desktop>, c: &config::Config) -> Entry {
+fn build_ui(
+    app: &Application,
+    desktop_entries: Rc<RefCell<Vec<Desktop>>>,
+    c: &config::Config,
+) -> Entry {
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Rauncher")
@@ -247,15 +249,17 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
     let list_box_clone = list_box.clone();
     let window_clone = window.clone();
     let c = c.clone();
+
     search_entry.connect_changed(move |entry| {
         let text = entry.text().to_string();
 
+        let entries = desktop_entries.borrow();
         let mut result: Vec<_> = vec![];
         if text.len() > 0 {
             let mut matcher = Matcher::new(nucleo_matcher::Config::DEFAULT);
             let pattern = Pattern::parse(text.as_str(), CaseMatching::Ignore, Normalization::Smart);
 
-            result = desktop_entries
+            result = entries
                 .iter()
                 .filter(|d| {
                     d.entry.icon().is_some() && d.entry.exec().is_some() && !d.entry.no_display()
@@ -420,6 +424,21 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
     window.hide();
 
     search_entry
+}
+
+fn load_desktop_entries() -> Vec<Desktop> {
+    let mut desktop_entries = Vec::<Desktop>::new();
+
+    for path in Iter::new(default_paths()) {
+        if let Ok(entry) = DesktopEntry::from_path(path, Some(&["en"])) {
+            let d = Desktop {
+                name: entry.name(&["en"]).unwrap().to_string(),
+                entry,
+            };
+            desktop_entries.push(d);
+        }
+    }
+    desktop_entries
 }
 
 fn bind_shortcut_key(
