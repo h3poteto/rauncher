@@ -1,7 +1,9 @@
+use ksni::{MenuItem, Tray};
+
 #[derive(Debug)]
 pub struct RauncherTray {}
 
-impl ksni::Tray for RauncherTray {
+impl Tray for RauncherTray {
     fn id(&self) -> String {
         "rauncher".into()
     }
@@ -27,5 +29,18 @@ impl ksni::Tray for RauncherTray {
 
     fn title(&self) -> String {
         "rauncher".into()
+    }
+
+    fn menu(&self) -> Vec<MenuItem<Self>> {
+        use ksni::menu::*;
+        vec![
+            StandardItem {
+                label: "Exit".into(),
+                icon_name: "application-exit".into(),
+                activate: Box::new(|_| std::process::exit(0)),
+                ..Default::default()
+            }
+            .into(),
+        ]
     }
 }
