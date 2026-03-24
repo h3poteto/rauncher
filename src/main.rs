@@ -253,35 +253,58 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
     search_entry.connect_changed(move |entry| {
         let text = entry.text().to_string();
 
-        let entries = desktop_entries.borrow();
-        let mut result: Vec<_> = vec![];
-        if text.len() > 0 {
-            let mut matcher = Matcher::new(nucleo_matcher::Config::DEFAULT);
-            let pattern = Pattern::parse(text.as_str(), CaseMatching::Ignore, Normalization::Smart);
-
-            result = entries
-                .iter()
-                .filter(|d| {
-                    d.entry.icon().is_some() && d.entry.exec().is_some() && !d.entry.no_display()
-                })
-                .filter_map(|d| {
-                    let mut buf = Vec::new();
-                    let mut desc = format!("{}", &d.name);
-                    if let Some(exec) = d.entry.exec() {
-                        desc = format!("{} {}", desc, exec);
-                    }
-                    let haystack = Utf32Str::new(&desc, &mut buf);
-                    pattern
-                        .score(haystack, &mut matcher)
-                        .map(|score| (d, score))
-                })
-                .collect();
-
-            result.sort_by(|a, b| b.1.cmp(&a.1));
-        }
-
         while let Some(child) = list_box_clone.first_child() {
             list_box_clone.remove(&child);
+        }
+
+        let entries = desktop_entries.borrow();
+        let mut result: Vec<_> = vec![];
+        let mut custom_search: Vec<&config::CustomSearch> = vec![];
+        if text.len() > 0 {
+            for custom in c.custom_search.iter() {
+                if text.starts_with(&format!("{} ", custom.shortcut.as_str())) {
+                    custom_search.push(custom);
+                }
+            }
+
+            if custom_search.len() == 0 {
+                let mut matcher = Matcher::new(nucleo_matcher::Config::DEFAULT);
+                let pattern =
+                    Pattern::parse(text.as_str(), CaseMatching::Ignore, Normalization::Smart);
+
+                result = entries
+                    .iter()
+                    .filter(|d| {
+                        d.entry.icon().is_some()
+                            && d.entry.exec().is_some()
+                            && !d.entry.no_display()
+                    })
+                    .filter_map(|d| {
+                        let mut buf = Vec::new();
+                        let mut desc = format!("{}", &d.name);
+                        if let Some(exec) = d.entry.exec() {
+                            desc = format!("{} {}", desc, exec);
+                        }
+                        let haystack = Utf32Str::new(&desc, &mut buf);
+                        pattern
+                            .score(haystack, &mut matcher)
+                            .map(|score| (d, score))
+                    })
+                    .collect();
+
+                result.sort_by(|a, b| b.1.cmp(&a.1));
+            }
+        }
+
+        for custom in custom_search.iter() {
+            let query = text
+                .as_str()
+                .strip_prefix(custom.shortcut.as_str())
+                .or_else(|| Some(text.as_str()))
+                .map(|s| s.trim_start())
+                .expect("Failed to parse query");
+            let row = generate_custom_search_row(custom, query);
+            list_box_clone.append(&row);
         }
 
         for (desktop, _score) in result.iter().take(10) {
@@ -322,44 +345,14 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
             list_box_clone.append(&row);
         }
 
-        if text.len() > 0 && result.len() == 0 && c.custom_search.len() > 0 {
+        if text.len() > 0
+            && result.len() == 0
+            && custom_search.len() == 0
+            && c.custom_search.len() > 0
+        {
             let default_search = c.custom_search.iter().find(|s| s.default_search);
             if let Some(ds) = default_search {
-                let row = gtk4::ListBoxRow::new();
-                let hbox = gtk4::Box::new(Orientation::Horizontal, 0);
-                hbox.set_margin_start(16);
-                hbox.set_margin_end(16);
-                hbox.set_margin_top(4);
-                hbox.set_margin_bottom(4);
-
-                if let Some(icon_name) = &ds.icon_name {
-                    let image = gtk4::Image::from_icon_name(icon_name.as_str());
-                    image.set_pixel_size(32);
-                    hbox.append(&image);
-                }
-                if let Some(icon_path) = &ds.icon_path {
-                    let image = gtk4::Image::from_file(icon_path);
-                    image.set_pixel_size(32);
-                    hbox.append(&image);
-                }
-
-                let vbox = gtk4::Box::new(Orientation::Vertical, 2);
-                vbox.set_halign(Align::Start);
-                vbox.set_margin_start(8);
-
-                let name_label = gtk4::Label::new(Some("Web search"));
-                name_label.set_halign(Align::Start);
-                vbox.append(&name_label);
-
-                let comment_label = gtk4::Label::new(Some("Type in your query"));
-                comment_label.set_halign(Align::Start);
-                comment_label.add_css_class("dim-label");
-                vbox.append(&comment_label);
-
-                hbox.append(&vbox);
-                row.set_child(Some(&hbox));
-
-                row.set_widget_name(&format!("__web_search__{}__{}", &ds.exec, &text));
+                let row = generate_custom_search_row(ds, text.as_str());
                 list_box_clone.append(&row);
             }
         }
@@ -454,6 +447,45 @@ fn bind_shortcut_key(
         let _ = (sender, c);
         Ok(())
     }
+}
+
+fn generate_custom_search_row(custom: &config::CustomSearch, text: &str) -> gtk4::ListBoxRow {
+    let row = gtk4::ListBoxRow::new();
+    let hbox = gtk4::Box::new(Orientation::Horizontal, 0);
+    hbox.set_margin_start(16);
+    hbox.set_margin_end(16);
+    hbox.set_margin_top(4);
+    hbox.set_margin_bottom(4);
+
+    if let Some(icon_name) = &custom.icon_name {
+        let image = gtk4::Image::from_icon_name(icon_name.as_str());
+        image.set_pixel_size(32);
+        hbox.append(&image);
+    }
+    if let Some(icon_path) = &custom.icon_path {
+        let image = gtk4::Image::from_file(icon_path);
+        image.set_pixel_size(32);
+        hbox.append(&image);
+    }
+
+    let vbox = gtk4::Box::new(Orientation::Vertical, 2);
+    vbox.set_halign(Align::Start);
+    vbox.set_margin_start(8);
+
+    let name_label = gtk4::Label::new(Some(&custom.name));
+    name_label.set_halign(Align::Start);
+    vbox.append(&name_label);
+
+    let comment_label = gtk4::Label::new(Some("Type in your query"));
+    comment_label.set_halign(Align::Start);
+    comment_label.add_css_class("dim-label");
+    vbox.append(&comment_label);
+
+    hbox.append(&vbox);
+    row.set_child(Some(&hbox));
+
+    row.set_widget_name(&format!("__web_search__{}__{}", &custom.exec, text));
+    row
 }
 
 struct RauncherService {

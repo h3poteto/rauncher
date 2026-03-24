@@ -1,6 +1,10 @@
 # Rauncher
 Rauncher is an application launcher for Linux desktop. It supports both X11 and Wayland.
 
+![screenshot1.png](screenshot1.png)
+
+![screenshot2.png](screenshot2.png)
+
 ## Install
 ### AUR
 
@@ -39,6 +43,7 @@ name = "Google"
 exec = "https://www.google.com/search?q=%q"
 icon_name = "web-browser"
 default_search = true
+shortcut = "g"
 ```
 
 The default hotkey is <kbd>Ctrk</kbd>+<kbd>Space</kbd>. You can check the keycode using `xev`.
@@ -56,6 +61,41 @@ exec sleep 2 && rauncher
 
 bindsym Control+space exec rauncher toggle
 ```
+
+## Configuration
+You can define your own custom search commands. For example,
+
+```toml
+[[custom_search]]
+name = "Startpage"
+exec = "https://www.startpage.com/sp/search?q=%q"
+icon_name = "web-browser"
+default_search = true
+shortcut = "sp"
+
+[[custom_search]]
+name = "Google Map"
+exec = "https://www.google.com/maps/search/%q"
+icon_path = "/home/akira/Pictures/googlemap.png"
+default_search = false
+shortcut = "map"
+
+[[custom_search]]
+name = "DuckDuckGo"
+exec = "https://duckduckgo.com/?q=%q"
+icon_path = "/home/akira/Pictures/duckduckgo.svg"
+default_search = false
+shortcut = "du"
+
+[[custom_search]]
+name = "Wikipedia"
+exec = "https://ja.wikipedia.org/wiki/%q"
+icon_path = "/home/akira/Pictures/wikipedia.svg"
+default_search = false
+shortcut = "wiki"
+```
+
+`%q` will be replaced with your keyword.
 
 ## License
 Rauncher is licensed under [GPL-3.0](LICENSE).

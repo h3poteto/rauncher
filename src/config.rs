@@ -24,6 +24,7 @@ pub struct CustomSearch {
     pub icon_path: Option<String>,
     pub icon_name: Option<String>,
     pub default_search: bool,
+    pub shortcut: String,
 }
 
 impl Default for Config {
@@ -34,11 +35,12 @@ impl Default for Config {
                 modifier: "ctrl".to_string(),
             },
             custom_search: vec![CustomSearch {
-                name: "Google".to_string(),
+                name: "google".to_string(),
                 exec: "https://www.google.com/search?q=%q".to_string(),
                 icon_path: None,
                 icon_name: Some("web-browser".to_string()),
                 default_search: true,
+                shortcut: "g".to_string(),
             }],
         }
     }
