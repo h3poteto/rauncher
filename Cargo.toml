@@ -9,7 +9,7 @@ homepage = "https://github.com/h3poteto/rauncher"
 
 [features]
 default = ["x11"]
-x11 = ["dep:x11rb"]
+x11 = ["dep:x11rb", "dep:gdk4-x11"]
 wayland = ["dep:gtk4-layer-shell"]
 
 [dependencies]
@@ -23,7 +23,8 @@ thiserror = "2.0.18"
 toml = "1.0.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22",  features = ["env-filter"]}
-x11rb = { version = "0.13.2", optional = true }
+x11rb = { version = "0.13.2", optional = true, features = ["xinerama"] }
+gdk4-x11 = { version = "0.10.3", optional = true }
 image = "0.25.9"
 zbus = { version = "5" , features = ["blocking-api"]}
 gtk4-layer-shell = { version = "0.7.1", optional = true}
