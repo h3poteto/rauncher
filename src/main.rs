@@ -143,6 +143,31 @@ fn main() {
                             } else {
                                 w.present();
                                 w.set_default_width(480);
+                                #[cfg(feature = "x11")]
+                                {
+                                    let w_clone = w.clone();
+                                    glib::idle_add_local_once(move || {
+                                        use gdk4_x11::X11Surface;
+                                        use glib::object::Cast;
+                                        use gtk4::prelude::NativeExt;
+                                        if let Some(surface) = w_clone.surface() {
+                                            if let Some(x11_surface) =
+                                                surface.downcast_ref::<X11Surface>()
+                                            {
+                                                let xid: u32 =
+                                                    x11_surface.xid().try_into().unwrap();
+                                                if let Err(e) =
+                                                    x11::center_on_active_monitor(xid, 480)
+                                                {
+                                                    tracing::error!(
+                                                        "Failed to center window: {}",
+                                                        e
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
                                 search_entry.grab_focus();
                             }
                         });
