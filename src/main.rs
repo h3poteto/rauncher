@@ -19,6 +19,7 @@ use nucleo_matcher::{
 };
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use uri_encode::encode_uri;
 use zbus::{
     blocking::{Connection, connection},
     interface,
@@ -426,7 +427,9 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
             }
             let url = v[0];
             let argument = v[1];
-            let command = url.replace("%q", argument);
+            tracing::debug!("argument: {}", argument);
+            let command = encode_uri(url.replace("%q", argument));
+            tracing::debug!("command: {}", command);
             std::process::Command::new("sh")
                 .arg("-c")
                 .arg(format!(
