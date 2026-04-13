@@ -57,7 +57,7 @@ $ rauncher toggle
 So, plsase set a shortcut key in your compositor settings, e.g. sway
 
 ```
-exec sleep 2 && rauncher
+exec rauncher
 
 bindsym Control+space exec rauncher toggle
 ```
