@@ -4,7 +4,8 @@ use events::KeyEvent;
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use gtk4::{
     Align, Application, ApplicationWindow, Entry, EventControllerKey, IconTheme, Orientation,
-    Window, gdk,
+    Window,
+    gdk::{self, prelude::DisplayExt},
     gio::prelude::{ApplicationExt, ApplicationExtManual},
     glib::{self},
     pango,
@@ -13,6 +14,7 @@ use gtk4::{
     },
 };
 use ksni::blocking::TrayMethods;
+use meval::eval_str;
 use nucleo_matcher::{
     Matcher, Utf32Str,
     pattern::{CaseMatching, Normalization, Pattern},
@@ -300,6 +302,18 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
             list_box_clone.remove(&child);
         }
 
+        // Calculator
+        match eval_str(text.as_str()) {
+            Ok(result) => {
+                let row = generate_calculator_row(text.as_str(), result);
+                list_box_clone.append(&row);
+            }
+            Err(e) => {
+                tracing::debug!("calculator parse error: {}", e);
+            }
+        }
+
+        // Search applications
         let entries = desktop_entries.borrow();
         let mut result: Vec<_> = vec![];
         let mut custom_search: Vec<&config::CustomSearch> = vec![];
@@ -388,6 +402,7 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
             list_box_clone.append(&row);
         }
 
+        // Default web search
         if text.len() > 0
             && result.len() == 0
             && custom_search.len() == 0
@@ -418,7 +433,14 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
     let search_entry_copy = search_entry.clone();
     list_box.connect_row_activated(move |_list_box, row| {
         let binding = row.widget_name().to_string();
-        if binding.starts_with("__web_search__") {
+        if binding.starts_with("__calculator__") {
+            let result = binding.replace("__calculator__", "");
+
+            if let Some(display) = gdk::Display::default() {
+                let clipboard = display.clipboard();
+                clipboard.set_text(result.to_string().as_str());
+            }
+        } else if binding.starts_with("__web_search__") {
             let exec = binding.replace("__web_search__", "");
             let v: Vec<&str> = exec.split("__").collect();
             if v.len() < 2 {
@@ -530,6 +552,39 @@ fn generate_custom_search_row(custom: &config::CustomSearch, text: &str) -> gtk4
     row.set_child(Some(&hbox));
 
     row.set_widget_name(&format!("__web_search__{}__{}", &custom.exec, text));
+    row
+}
+
+fn generate_calculator_row(_text: &str, result: f64) -> gtk4::ListBoxRow {
+    let row = gtk4::ListBoxRow::new();
+    let hbox = gtk4::Box::new(Orientation::Horizontal, 0);
+    hbox.set_margin_start(16);
+    hbox.set_margin_end(16);
+    hbox.set_margin_top(4);
+    hbox.set_margin_bottom(4);
+
+    let icon_name = "accessories-calculator";
+    let image = gtk4::Image::from_icon_name(icon_name);
+    image.set_pixel_size(32);
+    hbox.append(&image);
+
+    let vbox = gtk4::Box::new(Orientation::Vertical, 2);
+    vbox.set_halign(Align::Start);
+    vbox.set_margin_start(8);
+
+    let name_label = gtk4::Label::new(Some(result.to_string().as_str()));
+    name_label.set_halign(Align::Start);
+    vbox.append(&name_label);
+
+    let comment_label = gtk4::Label::new(Some("Copy result"));
+    comment_label.set_halign(Align::Start);
+    comment_label.add_css_class("dim-label");
+    vbox.append(&comment_label);
+
+    hbox.append(&vbox);
+    row.set_child(Some(&hbox));
+
+    row.set_widget_name(&format!("__calculator__{}", result));
     row
 }
 
