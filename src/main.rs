@@ -180,8 +180,25 @@ fn main() {
 
     app.connect_activate(|_app| {});
 
-    let tray_icon = tray::RauncherTray {};
-    let _handle = tray_icon.spawn().unwrap();
+    std::thread::spawn(|| {
+        for i in 0..10 {
+            let tray_icon = tray::RauncherTray {};
+            match tray_icon.spawn() {
+                Ok(_handle) => {
+                    tracing::info!("Tray icon registered");
+                    loop {
+                        // Keep handle;
+                        std::thread::park();
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!("Tray attempt {} failed: {}", i + 1, err);
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+            }
+        }
+        tracing::error!("Failed to register tray icon after 10 attempts");
+    });
 
     app.run();
 }
