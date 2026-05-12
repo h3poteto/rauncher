@@ -148,28 +148,39 @@ fn main() {
                                 w.set_default_width(480);
                                 #[cfg(feature = "x11")]
                                 {
-                                    let w_clone = w.clone();
-                                    glib::idle_add_local_once(move || {
+                                    // Some WMs reposition the window during their
+                                    // initial map placement, so try once at idle and
+                                    // again after 100ms to override that.
+                                    let center = |w: &gtk4::Window| {
                                         use gdk4_x11::X11Surface;
                                         use glib::object::Cast;
                                         use gtk4::prelude::NativeExt;
-                                        if let Some(surface) = w_clone.surface() {
-                                            if let Some(x11_surface) =
-                                                surface.downcast_ref::<X11Surface>()
-                                            {
-                                                let xid: u32 =
-                                                    x11_surface.xid().try_into().unwrap();
-                                                if let Err(e) =
-                                                    x11::center_on_active_monitor(xid, 480)
-                                                {
-                                                    tracing::error!(
-                                                        "Failed to center window: {}",
-                                                        e
-                                                    );
-                                                }
-                                            }
+                                        let Some(surface) = w.surface() else {
+                                            return;
+                                        };
+                                        let Some(x11_surface) =
+                                            surface.downcast_ref::<X11Surface>()
+                                        else {
+                                            return;
+                                        };
+                                        let xid: u32 = x11_surface.xid().try_into().unwrap();
+                                        if let Err(e) = x11::center_on_active_monitor(xid, 480)
+                                        {
+                                            tracing::error!(
+                                                "Failed to center window: {}",
+                                                e
+                                            );
                                         }
-                                    });
+                                    };
+
+                                    let w_idle = w.clone();
+                                    glib::idle_add_local_once(move || center(&w_idle));
+
+                                    let w_late = w.clone();
+                                    glib::timeout_add_local_once(
+                                        Duration::from_millis(100),
+                                        move || center(&w_late),
+                                    );
                                 }
                                 search_entry.grab_focus();
                             }
