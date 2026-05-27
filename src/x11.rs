@@ -5,8 +5,9 @@ use x11rb::{
     protocol::{
         Event,
         xinerama,
-        xproto::{ClientMessageEvent, ConfigureWindowAux, ConnectionExt, EventMask, GrabMode, ModMask},
+        xproto::{AtomEnum, ChangeWindowAttributesAux, ClientMessageEvent, ConfigureWindowAux, ConnectionExt, EventMask, GrabMode, ModMask, PropMode},
     },
+    wrapper::ConnectionExt as _,
 };
 
 use crate::config;
@@ -149,6 +150,28 @@ fn pick_monitor(
     }
 
     root_fallback
+}
+
+// Set _NET_WM_WINDOW_TYPE_DIALOG so that tiling WMs (e.g. i3) treat this
+// window as floating automatically, which is required for MOVERESIZE to work.
+pub fn set_window_type_dialog(window: u32) -> Result<(), Box<dyn std::error::Error>> {
+    let (conn, _) = x11rb::connect(None)?;
+    let type_atom = conn
+        .intern_atom(false, b"_NET_WM_WINDOW_TYPE")?
+        .reply()?
+        .atom;
+    let dialog_atom = conn
+        .intern_atom(false, b"_NET_WM_WINDOW_TYPE_DIALOG")?
+        .reply()?
+        .atom;
+    conn.change_property32(PropMode::REPLACE, window, type_atom, AtomEnum::ATOM, &[dialog_atom])?;
+    // Also subscribe to ConfigureNotify so the WM notifies us after placement.
+    conn.change_window_attributes(
+        window,
+        &ChangeWindowAttributesAux::new().event_mask(EventMask::STRUCTURE_NOTIFY),
+    )?;
+    conn.flush()?;
+    Ok(())
 }
 
 fn send_net_moveresize(
