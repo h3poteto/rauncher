@@ -14,7 +14,7 @@ use gtk4::{
     },
 };
 use ksni::blocking::TrayMethods;
-use meval::eval_str;
+use exmex::eval_str;
 use nucleo_matcher::{
     Matcher, Utf32Str,
     pattern::{CaseMatching, Normalization, Pattern},
@@ -314,7 +314,7 @@ row:selected, row:selected label, row:selected box, row:selected image, row:focu
         }
 
         // Calculator
-        match eval_str(text.as_str()) {
+        match eval_str::<f64>(text.as_str()) {
             Ok(result) => {
                 let row = generate_calculator_row(text.as_str(), result);
                 list_box_clone.append(&row);
