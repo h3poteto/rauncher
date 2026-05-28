@@ -243,6 +243,19 @@ fn build_ui(
         window.set_margin(Edge::Top, 420);
     }
 
+    #[cfg(feature = "x11")]
+    window.connect_realize(|w| {
+        use gdk4_x11::X11Surface;
+        use glib::object::Cast;
+        use gtk4::prelude::NativeExt;
+        let Some(surface) = w.surface() else { return };
+        let Some(x11_surface) = surface.downcast_ref::<X11Surface>() else { return };
+        let xid: u32 = x11_surface.xid().try_into().unwrap();
+        if let Err(e) = x11::set_window_type_dialog(xid) {
+            tracing::error!("Failed to set window type: {}", e);
+        }
+    });
+
     let window_clone = window.clone();
     let controller = EventControllerKey::new();
 
