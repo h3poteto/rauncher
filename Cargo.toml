@@ -15,7 +15,7 @@ wayland = ["dep:gtk4-layer-shell"]
 [dependencies]
 dirs = "6.0.0"
 freedesktop-desktop-entry = "0.8.1"
-gtk4 = "0.10.3"
+gtk4 = "0.11.0"
 ksni = { version = "0.3.3", features = ["blocking"]}
 nucleo-matcher = "0.3.1"
 serde = { version = "1.0.228", features = ["derive"]}
